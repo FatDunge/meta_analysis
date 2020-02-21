@@ -30,9 +30,9 @@ class Center(object):
         self.m1, self.s1, self.n1 = get_mean_std_n(arrays1)
         self.m2, self.s2, self.n2 = get_mean_std_n(arrays2)
 
-    def gen_study(self, index):
+    def gen_study(self, index, method):
         if self.n1 and self.n2:
-            return Study(self.name,
+            return Study(self.name, method,
                          self.m1[index], self.s1[index], self.n1[index],
                          self.m2[index], self.s2[index], self.n2[index])
     
