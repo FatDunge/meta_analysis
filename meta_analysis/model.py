@@ -1,24 +1,5 @@
 import numpy as np
-import scipy
-
-class Model(object):
-    def __init__(self, effect_sizes, variances):
-        super().__init__()
-        self.effect_sizes = effect_sizes
-        self.variance = variances
-
-        self.total_effect_size = None
-        self.weights = None
-        self.total_variance = None
-        self.standard_error = None
-        self.lower_limits =None
-        self.upper_limits = None
-        self.q = None
-        self.z = None
-        self.p = None
-
-    def caculate(self):
-        raise NotImplementedError
+from scipy.stats import norm
 
 def inverse_variance(variance):
     return 1 / variance
@@ -38,20 +19,27 @@ def get_z_value(total_effect_size, standard_error, x0=0):
 
 def get_p_from_z(z, one_side=False):
     if one_side:
-        p_values = scipy.stats.norm.sf(abs(z))
+        p_values = norm.sf(abs(z))
     else:
-        p_values = scipy.stats.norm.sf(abs(z)) * 2
+        p_values = norm.sf(abs(z)) * 2
 
-class FixedModel(Model):
+class Model(object):
     def __init__(self, effect_sizes, variances):
-        super().__init__(effect_sizes, variances)
+        super().__init__()
+        self.effect_sizes = effect_sizes
+        self.variances = variances
+        self.gen_weights()
 
         self.caculate()
+    
+    def gen_weights(self):
+        raise NotImplementedError("Generate Weight Method Not Implemented")
 
     def caculate(self):
-        variances = self.variances
         effect_sizes = self.effect_sizes
-        weights = np.reciprocal(variances)
+        variances = self.variances
+        weights = self.weights
+
         total_effect_size = np.sum(np.multiply(effect_sizes, weights)) /\
                    np.sum(weights)
         total_variance = 1 / np.sum(weights)
@@ -63,7 +51,6 @@ class FixedModel(Model):
         p = get_p_from_z(z)
 
         self.total_effect_size = total_effect_size
-        self.weights = weights
         self.total_variance = total_variance
         self.standard_error = standard_error
         self.lower_limits = lower_limits
@@ -73,10 +60,36 @@ class FixedModel(Model):
         self.p = p
 
     def get_results(self):
-        return (self.total_effect_size, self.weights, 
+        return (self.total_effect_size,
                 self.total_variance, self.standard_error,
                 self.lower_limits, self.upper_limits,
                 self.q, self.z, self.p)
 
+class FixedModel(Model):
+    def __init__(self, effect_sizes, variances):
+        super().__init__(effect_sizes, variances)
 
-    
+    def gen_weights(self):
+        effect_sizes = self.effect_sizes
+        variances = self.variances
+
+        self.weights = np.reciprocal(variances)
+
+class RandomModel(Model):
+    def __init__(self, effect_sizes, variances):
+        super().__init__(effect_sizes, variances)
+
+    def gen_weights(self):
+        effect_sizes = self.effect_sizes
+        variances = self.variances
+
+        fixed_weights = np.reciprocal(variances)
+        mean_effect_size = np.mean(effect_sizes)
+        Q = np.sum(np.square(variances-mean_effect_size)/variances)
+        df = len(variances) - 1
+        C = np.sum(fixed_weights) - np.sum(np.square(fixed_weights)) / np.sum(fixed_weights)
+        tau_square = (Q - df) / C
+        if tau_square < 0:
+            tau_square = 0
+
+        self.weights = np.reciprocal(variances + tau_square)
