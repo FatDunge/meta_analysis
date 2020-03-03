@@ -19,15 +19,16 @@ def get_z_value(total_effect_size, standard_error, x0=0):
 
 def get_p_from_z(z, one_side=False):
     if one_side:
-        p_values = norm.sf(abs(z))
+        p_value = norm.sf(abs(z))
     else:
-        p_values = norm.sf(abs(z)) * 2
+        p_value = norm.sf(abs(z)) * 2
+    return p_value
 
 class Model(object):
     def __init__(self, effect_sizes, variances):
         super().__init__()
-        self.effect_sizes = effect_sizes
-        self.variances = variances
+        self.effect_sizes = np.asarray(effect_sizes)
+        self.variances = np.asarray(variances)
         self.gen_weights()
 
         self.caculate()
