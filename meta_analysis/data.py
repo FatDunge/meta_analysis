@@ -1,3 +1,37 @@
+""" data module mainly use to manage core data
+
+Function:
+    load_array(path): load nii file by filepath, return dataobj array
+    load_arrays(pathes): load list of nii filepath, return ndarray of array
+    cal_mean_std_n(arrays, axis): calculate arrays mean, std, n by axis
+
+Class:
+    Group(object): A specific label group within a center
+    ArrayGroup(Group): group which datas is ndarray, can be init with filepathes
+    Study(object): A study which hold two group's mean, std, count,
+                   can caculate its effect size, variance.
+    Center(object): A center holds lots of group, generate study.
+
+Author: Kang Xiaopeng
+Data: 2020/02/20
+E-mail: kangxiaopeng2018@ia.ac.cn
+
+This file is part of meta_analysis.
+
+meta_analysis is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+meta_analysis is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with meta_analysis.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,21 +44,47 @@ def load_array(path):
     array = np.nan_to_num(array)
     return array
 
-def load_arrays(pathes):
+def load_arrays(pathes, axis=0):
     arrays = np.array([])
     if pathes:
-        arrays = np.stack([load_array(path) for path in pathes], axis=0)
+        arrays = np.stack([load_array(path) for path in pathes], axis=axis)
     return arrays
 
-def cal_mean_std_n(arrays):
-    mean = np.mean(arrays, axis=0)
-    std = np.std(arrays, axis=0)
-    n = arrays.shape[0]
+def cal_mean_std_n(arrays, axis=0):
+    mean = np.mean(arrays, axis=axis)
+    std = np.std(arrays, axis=axis)
+    n = arrays.shape[axis]
     return mean, std, n
 
 class Group(object):
+    """ Group of specific label, holds origin data or mean, std, count.
+
+    Attributes:
+        label: int or string, this group's label.
+        datas: original datas, 1d array, used to caculate mean, std, count.
+        mean: float, mean of datas
+        std: float, std of datas
+        count: int, count of datas
+        shape: default 1, used to check mean's dimension.
+        not_msn: bool, whether one of (mean, std, count) is None
+
+    Function:
+        check_property(): check if not_msn and not datas
+        is_same_shape(): check if other group has same shape with self
+        get_label(): return label
+        get_mean_std_count(): return mean, std, count
+    """
+
     def __init__(self, label, datas=None,
                  mean=None, std=None, count=None):
+        """ init, Note must input (mean, std, count) or datas
+        Args:
+            label: int or string, this group's label.
+            datas: original datas, 1d array, used to caculate mean, std, count.
+            mean: float, mean of datas
+            std: float, std of datas
+            count: float, count of datas
+        """
         super().__init__()
         self.label = label
         self.datas = datas
@@ -57,13 +117,35 @@ class Group(object):
         return self.mean, self.std, self.count
 
 class ArrayGroup(Group):
+    """ Subclass of Group, has mutli-dimension datas.
+
+    Attributes:
+        label: int or string, this group's label.
+        datas: original datas, ndarray, used to caculate mean, std, count.
+        mean: ndarray, mean of datas
+        std: ndarray, std of datas
+        count: int, count of datas
+        shape: shape of mean.
+        not_msn: bool, whether one of (mean, std, count) is None
+
+        datapathes: list origin nii filepathes.
+
+    Function:
+        check_property(): check if not_msn and not datas and not datapathes
+        gen_mean_std_count(): generate mean, std, count
+        check_shape(): check whether mean and std is same shape 
+        get_mean_std_count(index): return mean, std, count at index
+        get_region_mean_std_count(mask, region_label)
+    """
     def __init__(self, label, datas=None,
                  mean=None, std=None, count=None,
                  datapathes=None):
         super().__init__(label, datas, mean, std, count)
         self.datapathes = datapathes
-        self.gen_shape()
-        
+        self.shape = None
+        self.check_property()
+        self.check_shape()
+
     def check_property(self):
         self.not_msn = not self.mean or not self.std or not self.count
         if self.not_msn:
@@ -80,24 +162,44 @@ class ArrayGroup(Group):
             return True
 
     def gen_mean_std_count(self):
-        if self.check_property():
-            if self.not_msn:
-                self.mean, self.std, self.count = super().get_mean_std_count()
+        if self.not_msn:
+            self.mean, self.std, self.count = super().get_mean_std_count()
 
-    def gen_shape(self):
-        self.gen_mean_std_count()
+    def check_shape(self):
+        if self.not_msn:
+            self.gen_mean_std_count()
+        assert self.mean.shape == self.std.shape
         self.shape = self.mean.shape
 
     def get_mean_std_count(self, index):
         return self.mean[index], self.std[index], self.count
 
-    def get_region_mean_std_count(self, mask, label):
-        mean = mask.get_masked_volume(self.mean, label)
-        std = mask.get_masked_volume(self.std, label)
+    def get_region_mean_std_count(self, mask, region_label):
+        mean = mask.get_masked_volume(self.mean, region_label)
+        #FIXME: this is not the way std combined.
+        std = mask.get_masked_volume(self.std, region_label)
         return mean, std, self.count
 
 @dataclass
 class Study(object):
+    """ meta analysis study, used to caculate effect size and variance.
+
+    Attributes:
+        name: str, study name
+        method: str, method to caculate effect size 
+        mean1: float, mean of experimental group
+        std1: float, std of experimental group
+        count1: int, count of experimental group
+        mean2: float, mean of control group
+        std2: float, std of control group
+        count2: int, count of control group
+        s: float, pooled standard deviation
+
+    Function:
+        cohen_d(): cohen'd effect size
+        get_effect_size(): use specific method to return effect size
+        get_variance(): return variance
+    """
     name: str
     method: str
     mean1: float
@@ -113,6 +215,8 @@ class Study(object):
             self.func = self.cohen_d
 
     def cohen_d(self):
+        """ details in https://en.wikipedia.org/wiki/Effect_size
+        """
         m1, s1, n1 = self.mean1, self.std1, self.count1
         m2, s2, n2 = self.mean2, self.std2, self.count2
         s = np.sqrt(((n1-1)*(s1**2)+(n2-1)*(s2**2))/(n1+n2-2))
@@ -129,26 +233,41 @@ class Study(object):
         return self.s ** 2
 
 class Center(object):
+    """ meta analysis study, used to caculate effect size and variance.
+
+    Attributes:
+        name: str, center name
+        shape: group's mean shape, used to check center consistency
+        group_dict: dict of Group instance, {name1: group1, ...}
+
+    Function:
+        check_groups(): check groups consistency
+        build_dict(groups): build dict for better index
+        check_label(label): check whether has group of specific label in this center
+        gen_study(label1, label2, method, index): generate Study instance
+        gen_region_study(label1, label2, method, mask, region_label): generate Region Study
+    """
     def __init__(self, name, groups):
         self.name = name
-        self.groups = groups
-        self.check_groups()
-        self.build_dic()
+        self.check_groups(groups)
+        self.build_dic(groups)
 
-    def check_groups(self):
-        base_group = self.groups[0]
+    def check_groups(self, groups):
+        #check shape
+        base_group = groups[0]
         self.shape = base_group.shape
         class_name = type(base_group).__name__
-        for group in self.groups:
+        for group in groups:
+            #check Group class
             assert type(group).__name__ == class_name
             assert base_group.is_same_shape(group)
 
     def is_same_shape(self, center):
         return self.shape == center.shape
 
-    def build_dic(self):
+    def build_dict(self, groups):
         group_dict = {}
-        for group in self.groups:
+        for group in groups:
             label = group.get_label()
             if label not in group_dict:
                 group_dict[label] = group
@@ -172,6 +291,7 @@ class Center(object):
                 if index is None:
                     raise ValueError('ArrayGroup needs index to generate Study')
                 else:
+                    # if voxelwise, need index
                     m1, s1, n1 = self.group_dict[label1].get_mean_std_count(index)
                     m2, s2, n2 = self.group_dict[label2].get_mean_std_count(index)                    
             else:
