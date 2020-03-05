@@ -158,7 +158,7 @@ class Center(object):
             print('Couln\'t found [label:{}] group in [center:{}]'.format(label2, self.name))
         else:
             if isinstance(self.group_dict[label1], ArrayGroup):
-                if not index:
+                if index is None:
                     raise ValueError('ArrayGroup needs index to generate Study')
                 else:
                     m1, s1, n1 = self.group_dict[label1].get_mean_std_count(index)
