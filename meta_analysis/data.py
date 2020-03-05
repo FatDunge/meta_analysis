@@ -91,6 +91,11 @@ class ArrayGroup(Group):
     def get_mean_std_count(self, index):
         return self.mean[index], self.std[index], self.count
 
+    def get_region_mean_std_count(self, mask, label):
+        mean = mask.get_masked_volume(self.mean, label)
+        std = mask.get_masked_volume(self.std, label)
+        return mean, std, self.count
+
 @dataclass
 class Study(object):
     name: str
@@ -151,11 +156,17 @@ class Center(object):
                 raise ValueError("Two Groups have same label, please check or merge.")
         self.group_dict = group_dict
 
+    def check_label(self, label):
+        if label not in self.group_dict:
+            print('Couln\'t found [label:{}] group in [center:{}]'.format(label, self.name))
+            return False
+        return True
+
     def gen_study(self, label1, label2, method, index=None):
-        if label1 not in self.group_dict:
-            print('Couln\'t found [label:{}] group in [center:{}]'.format(label1, self.name))
-        elif label2 not in self.group_dict:
-            print('Couln\'t found [label:{}] group in [center:{}]'.format(label2, self.name))
+        if not self.check_label(label1):
+            return
+        elif not self.check_label(label2):
+            return
         else:
             if isinstance(self.group_dict[label1], ArrayGroup):
                 if index is None:
@@ -167,4 +178,16 @@ class Center(object):
                 m1, s1, n1 = self.group_dict[label1].get_mean_std_count()
                 m2, s2, n2 = self.group_dict[label2].get_mean_std_count()
             return Study(self.name, method, m1, s1, n1, m2, s2, n2)
-        
+
+    def gen_region_study(self, label1, label2, method, mask, region_label):
+        if not self.check_label(label1):
+            return
+        elif not self.check_label(label2):
+            return
+        else:
+            if isinstance(self.group_dict[label1], ArrayGroup):
+                m1, s1, n1 = self.group_dict[label1].get_region_mean_std_count(mask, region_label)
+                m2, s2, n2 = self.group_dict[label2].get_region_mean_std_count(mask, region_label)
+                return Study(self.name, method, m1, s1, n1, m2, s2, n2)
+            else:
+                raise ValueError(ArrayGroup)
