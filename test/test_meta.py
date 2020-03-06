@@ -4,8 +4,12 @@ import nibabel as nib
 import numpy as np
 from meta_analysis import main, mask, utils
 
-def test_voxelmeta(_mask):
+def test_voxelmeta():
     path = r'../test_data'
+    mask_path = r'../grey_matter_smoothed_005.nii'
+    mask_nii = nib.load(mask_path)
+    _mask = np.asarray(mask_nii.dataobj)
+    _mask = mask.Mask(_mask)
     center_names = os.listdir(path)
     center_dict = {}
     for center_name in center_names:
@@ -28,16 +32,16 @@ def test_voxelmeta(_mask):
     model = 'random'
     results = main.voxelwise_meta_analysis(center_dict, 1, 3,
                                            model=model,method=method,mask=_mask)
+    result_names = ['es','var', 'se', 'll','ul','q','z','p']
+    output = r'../result/{}'
+    for result, name in zip(results, result_names):
+        path = output.format(name)
+    utils.gen_nii(result, mask_nii, path)
     return results
 
-mask_path = r'../grey_matter_smoothed_005.nii'
-mask_nii = nib.load(mask_path)
-_mask = np.asarray(mask_nii.dataobj)
-_mask = mask.Mask(_mask)
-results = test_voxelmeta(_mask)
+def test_csv():
+    result_model = main.csv_meta_analysis('../test_data/test.csv',)
+    return result_model.get_results()
 
-result_names = ['es','var', 'se', 'll','ul','q','z','p']
-output = r'../result/{}'
-for result, name in zip(results, result_names):
-    path = output.format(name)
-    utils.gen_nii(result, mask_nii, path)
+results = test_csv()
+# %%
