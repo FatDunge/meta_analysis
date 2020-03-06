@@ -39,7 +39,7 @@ class Meta(object):
     def __init__(self):
         super().__init__()
 
-    def caculate(self, studies, model:str):
+    def caculate(self, studies, _model:str):
         """caculate effect size and variance, feed to model
         Args:
             studies: list of Study
@@ -56,9 +56,9 @@ class Meta(object):
             effect_sizes.append(es)
             variances.append(v)
 
-        if model.lower() == 'fixed':
+        if _model.lower() == 'fixed':
             m = model.FixedModel(effect_sizes, variances)
-        elif model.lower() == 'random':
+        elif _model.lower() == 'random':
             m = model.RandomModel(effect_sizes, variances)
         return m
 

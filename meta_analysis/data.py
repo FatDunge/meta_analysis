@@ -250,7 +250,7 @@ class Center(object):
     def __init__(self, name, groups):
         self.name = name
         self.check_groups(groups)
-        self.build_dic(groups)
+        self.build_dict(groups)
 
     def check_groups(self, groups):
         #check shape
