@@ -26,6 +26,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with meta_analysis.  If not, see <https://www.gnu.org/licenses/>.
 """
+import pandas as pd
 
 from . import meta
 from . import data
@@ -70,7 +71,7 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
         model: 'fixed' or 'random', meta analysis model.
         method: str, ways to caculate effect size
     Return:
-        results: ndarray, return from Meta.main()
+        results: ndarray, return from VoxelMeta.main()
     """
     
     centers = gen_array_center(center_dict, is_filepath)
@@ -110,3 +111,31 @@ def region_volume_meta_analysis(center_dict, label1, label2,
         result = m.caculate(studies, model)
         results[region_label] = result
     return results
+
+def csv_meta_analysis(csvpath, header=0, method='cohen_d', model='random'):
+    """ perform meta analysis based on csv file
+    Args:
+        csvpath: csv filepath,
+                 csv example:
+                    center_name, m1, s1, n1, m2, s2, n2
+                    center1, 1, 1, 10, 2, 2, 20
+                    center2, 1.2, 2, 15, 2.2, 2, 15
+        header: 0 or None, pandas.read_csv args.
+                None means no header
+        model: 'fixed' or 'random', meta analysis model.
+        method: str, ways to caculate effect size
+    Return:
+        results: Model instance
+    """
+    df = pd.read_csv(csvpath, header=header, index_col=0)
+    studies = []
+    for index, row in df.iterrows():
+        m1,s1,n1,m2,s2,n2 = row.values
+        group1 = data.Group(0, mean=m1, std=s1, count=n1)
+        group2 = data.Group(1, mean=m2, std=s2, count=n2)
+        center = data.Center(index, [group1, group2])
+        studies.append(center.gen_study(0,1,method))
+    _meta = meta.Meta()
+    result_model = _meta.caculate(studies, _model=model)
+    return result_model
+
