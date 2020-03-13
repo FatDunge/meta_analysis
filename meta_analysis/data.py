@@ -224,6 +224,12 @@ class Study(object):
         self.s = s
         return d
 
+    def hedge_g(self):
+        g = self.cohen_d()
+        n1, n2 = self.count1, self.count2
+        g_star = (1-3/(4*(n1+n2)-9)) * g
+        return g_star
+
     def get_effect_size(self):
         return self.func()
 
