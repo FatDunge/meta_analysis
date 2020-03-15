@@ -26,37 +26,39 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with meta_analysis.  If not, see <https://www.gnu.org/licenses/>.
 """
+import copy
+
+import numpy as np
 import pandas as pd
 
 from . import meta
 from . import data
+from . import utils
+from . import mask
 
-def gen_array_center(center_dict, is_filepath):
+def load_centers_data(center_dict):
     """ generate list of Center instance
     Args:
-        center_dict: dict of dict of group filepathes.
-                    {center1:{group1:[filepath1, filepath2],
-                              group2:[filepath3, filepath4]}
-                     center2:{...}}
-        is_filepath: bool, is filepath or ndarray
+        center_dict: dict of dict of filepathes.
+                     {center1_name:{group1_label:[filepath1, filepath2],
+                                   group2_label:[filepath3, filepath4],
+                                   ...}
+                      center2_name:{...}}
     Return:
-        centers: list of Center instance
+        center_dict: dict of dict of datas.
+                     {center1_name:{group1_label:[data1, data2],
+                                   group2_label:[data3, data4],
+                                   ...}
+                      center2_name:{...}}
     """
-    centers = []
     for center_name, group_dict in center_dict.items():
-        groups = []
-        for label, datas in group_dict.items():
-            if is_filepath:
-                group = data.ArrayGroup(label, datapathes=datas)
-            else:
-                group = data.ArrayGroup(label, datas=datas)
-            groups.append(group)
-        center = data.Center(center_name, groups)
-        centers.append(center)
-    return centers
+        for label, filepathes in group_dict.items():
+            array = utils.load_arrays(filepathes)
+            center_dict[center_name][label] = array
+    return center_dict
 
 def voxelwise_meta_analysis(center_dict, label1, label2,
-                            mask=None, is_filepath=True,
+                            _mask=None, is_filepath=True,
                             model='random', method='cohen_d'):
     """ perform voxelwise meta analysis
     Args:
@@ -66,19 +68,78 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
                      center2:{...}}
         label1: label of experimental group
         label2: label of control group
-        mask: Mask instance, use to mask array, will only caculate mask region.
+        _mask: Mask instance, use to mask array, will only caculate mask region.
         is_filepath: bool, is filepath or ndarray. pass to gen_array_center()
         model: 'fixed' or 'random', meta analysis model.
         method: str, ways to caculate effect size
     Return:
         results: ndarray, return from VoxelMeta.main()
     """
+    if is_filepath:
+        center_dict = load_centers_data(center_dict)
     
-    centers = gen_array_center(center_dict, is_filepath)
+    origin_shape = None
+    flatten_shape = None
+    for k, group_dict in center_dict.items():
+        for label, datas in group_dict.items():
+            if origin_shape is None:
+                origin_shape = datas[0].shape
+            datas = np.reshape(datas, (len(datas), -1))
+            center_dict[k][label] = datas
+            if flatten_shape is None:
+                flatten_shape = datas[0].shape
+    if _mask is not None:
+        if _mask.get_shape() == origin_shape:
+            _mask = mask.Mask(_mask.data.flatten())
+        elif _mask.get_shape() == flatten_shape:
+            pass
+        else:
+            raise AssertionError('Mask shape couldn\'t fit with data')
     
-    m = meta.VoxelMeta(centers)
-    results = m.main(label1, label2, model, method, mask)
-    return results
+    center_mean_dict = copy.deepcopy(center_dict)
+    center_std_dict = copy.deepcopy(center_dict)
+    center_count_dict = copy.deepcopy(center_dict)
+    for center_name, group_dict in center_dict.items():
+        for label, datas in group_dict.items():
+            mean, std, count = utils.cal_mean_std_n(datas)
+            center_mean_dict[center_name][label] = mean
+            center_std_dict[center_name][label] = std
+            center_count_dict[center_name][label] = count
+
+    if _mask is not None:
+        indexes = _mask.get_nonzero_index()
+    else:
+        indexes = np.transpose(np.nonzero(np.ones(flatten_shape)))
+
+    m = meta.Meta()
+    results_array = None
+    import time
+    st = time.time()
+    for index in indexes:
+        center_list = []
+        for center_name, group_dict in center_dict.items():
+            groups = []
+            for label, _ in group_dict.items():
+                mean = center_mean_dict[center_name][label][index][0]
+                std = center_std_dict[center_name][label][index][0]
+                count = center_count_dict[center_name][label]
+                group = data.Group(label=label, mean=mean, std=std, count=count)
+                groups.append(group)
+            center = data.Center(center_name, groups)
+            center_list.append(center)
+        centers = data.Centers(center_list)
+        studies = centers.gen_studies(label1, label2, method)
+        result_model = m.caculate(studies, model)
+        results = result_model.get_results()
+        if results_array is None:
+            results_len = len(results)
+            results_array = np.zeros(flatten_shape+(results_len,))
+        results_array[index] = results
+    results_array = np.transpose(results_array)
+    results_array = np.reshape(results_array, (results_len,)+origin_shape)
+    et = time.time()
+    els = et - st
+    return results_array
 
 def region_volume_meta_analysis(center_dict, label1, label2, 
                                 mask, is_filepath=True,
@@ -98,6 +159,7 @@ def region_volume_meta_analysis(center_dict, label1, label2,
     Return:
         results: dict of tuple, {region_label1: result1, ...}
     """
+    """
     centers = gen_array_center(center_dict, is_filepath)
 
     region_labels = mask.get_labels()
@@ -111,6 +173,8 @@ def region_volume_meta_analysis(center_dict, label1, label2,
         result = m.caculate(studies, model)
         results[region_label] = result
     return results
+    """
+    pass
 
 def csv_meta_analysis(csvpath, header=0, method='cohen_d', model='random'):
     """ perform meta analysis based on csv file

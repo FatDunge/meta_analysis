@@ -24,16 +24,36 @@ along with meta_analysis.  If not, see <https://www.gnu.org/licenses/>.
 """
 import os
 
+import numpy as np
 import nibabel as nib
+
+def load_array(path):
+    nii = nib.load(path)
+    array = np.asarray(nii.dataobj)
+    array = np.nan_to_num(array)
+    return array
+
+def load_arrays(pathes,axis=0):
+    arrays = np.array([])
+    if pathes:
+        arrays = np.stack([load_array(path) for path in pathes], axis=axis)
+    return arrays
+
+def cal_mean_std_n(arrays, axis=0):
+    mean = np.mean(arrays, axis=axis)
+    std = np.std(arrays, axis=axis)
+    n = arrays.shape[axis]
+    return mean, std, n
 
 def gen_nii(array, template_nii, path=None):
     """ generate nii file using template's header and affine
         if input path then save nii in disk.
     Args:
-        studies: list of Study
-        model: 'fixed' or 'random'
+        array: array to form nii
+        template_nii: nibabel Nifti1 instance, use its affine and header
+        path: string, path to store nii file
     Return:
-        m: instance of Model
+        nii: nibabel Nifti1 instance 
     """
     affine = template_nii.affine
     header = template_nii.header
@@ -45,5 +65,3 @@ def gen_nii(array, template_nii, path=None):
             path = filename + extension
             nib.nifti1.save(nii, path)
     return nii
-
-# %%

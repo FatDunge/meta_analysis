@@ -7,7 +7,6 @@ Function:
 
 Class:
     Group(object): A specific label group within a center
-    ArrayGroup(Group): group which datas is ndarray, can be init with filepathes
     Study(object): A study which hold two group's mean, std, count,
                    can caculate its effect size, variance.
     Center(object): A center holds lots of group, generate study.
@@ -38,23 +37,7 @@ from typing import Any
 import nibabel as nib
 import numpy as np
 
-def load_array(path):
-    nii = nib.load(path)
-    array = np.asarray(nii.dataobj)
-    array = np.nan_to_num(array)
-    return array
-
-def load_arrays(pathes, axis=0):
-    arrays = np.array([])
-    if pathes:
-        arrays = np.stack([load_array(path) for path in pathes], axis=axis)
-    return arrays
-
-def cal_mean_std_n(arrays, axis=0):
-    mean = np.mean(arrays, axis=axis)
-    std = np.std(arrays, axis=axis)
-    n = arrays.shape[axis]
-    return mean, std, n
+from . import utils
 
 class Group(object):
     """ Group of specific label, holds origin data or mean, std, count.
@@ -94,7 +77,7 @@ class Group(object):
         self.shape = 1
 
     def check_property(self):
-        self.not_msn = not self.mean or not self.std or not self.count
+        self.not_msn = self.mean is None or self.std is None or not self.count
         if self.not_msn:
             if self.datas:
                 return True
@@ -112,73 +95,9 @@ class Group(object):
     def get_mean_std_count(self):
         if self.check_property():
             if self.not_msn:
-                self.mean, self.std, self.count = cal_mean_std_n(np.asarray(self.datas))
+                self.mean, self.std, self.count = utils.cal_mean_std_n(np.asarray(self.datas))
                 self.not_msn = False
         return self.mean, self.std, self.count
-
-class ArrayGroup(Group):
-    """ Subclass of Group, has mutli-dimension datas.
-
-    Attributes:
-        label: int or string, this group's label.
-        datas: original datas, ndarray, used to caculate mean, std, count.
-        mean: ndarray, mean of datas
-        std: ndarray, std of datas
-        count: int, count of datas
-        shape: shape of mean.
-        not_msn: bool, whether one of (mean, std, count) is None
-
-        datapathes: list origin nii filepathes.
-
-    Function:
-        check_property(): check if not_msn and not datas and not datapathes
-        gen_mean_std_count(): generate mean, std, count
-        check_shape(): check whether mean and std is same shape 
-        get_mean_std_count(index): return mean, std, count at index
-        get_region_mean_std_count(mask, region_label)
-    """
-    def __init__(self, label, datas=None,
-                 mean=None, std=None, count=None,
-                 datapathes=None):
-        super().__init__(label, datas, mean, std, count)
-        self.datapathes = datapathes
-        self.shape = None
-        self.check_property()
-        self.check_shape()
-
-    def check_property(self):
-        self.not_msn = not self.mean or not self.std or not self.count
-        if self.not_msn:
-            if self.datas is None:
-                if self.datapathes:
-                    self.datas = load_arrays(self.datapathes)
-                    return True
-                elif not self.datapathes:
-                    raise AttributeError('Need at least one input for datas\
-                                        or (mean, std, count) or datapathes')
-            else:
-                return True
-        else:
-            return True
-
-    def gen_mean_std_count(self):
-        if self.not_msn:
-            self.mean, self.std, self.count = super().get_mean_std_count()
-
-    def check_shape(self):
-        if self.not_msn:
-            self.gen_mean_std_count()
-        assert self.mean.shape == self.std.shape
-        self.shape = self.mean.shape
-
-    def get_mean_std_count(self, index):
-        return self.mean[index], self.std[index], self.count
-
-    def get_region_mean_std_count(self, mask, region_label):
-        mean = mask.get_masked_volume(self.mean, region_label)
-        #FIXME: this is not the way std combined.
-        std = mask.get_masked_volume(self.std, region_label)
-        return mean, std, self.count
 
 @dataclass
 class Study(object):
@@ -202,23 +121,21 @@ class Study(object):
     """
     name: str
     method: str
-    mean1: float
-    std1: float
-    count1: int
-    mean2: float
-    std2: float
-    count2: int
+    group_experimental: Group
+    group_control: Group
 
     def __post_init__(self):
         self.s = None
         if self.method == 'cohen_d':
             self.func = self.cohen_d
+        elif self.method == 'hedge_g':
+            self.func = self.hedge_g
 
     def cohen_d(self):
         """ details in https://en.wikipedia.org/wiki/Effect_size
         """
-        m1, s1, n1 = self.mean1, self.std1, self.count1
-        m2, s2, n2 = self.mean2, self.std2, self.count2
+        m1, s1, n1 = self.group_experimental.get_mean_std_count()
+        m2, s2, n2 = self.group_control.get_mean_std_count()
         s = np.sqrt(((n1-1)*(s1**2)+(n2-1)*(s2**2))/(n1+n2-2))
         d = (m1 - m2) / s
         self.s = s
@@ -287,33 +204,25 @@ class Center(object):
             return False
         return True
 
-    def gen_study(self, label1, label2, method, index=None):
+    def gen_study(self, label1, label2, method):
         if not self.check_label(label1):
             return
         elif not self.check_label(label2):
             return
         else:
-            if isinstance(self.group_dict[label1], ArrayGroup):
-                if index is None:
-                    raise ValueError('ArrayGroup needs index to generate Study')
-                else:
-                    # if voxelwise, need index
-                    m1, s1, n1 = self.group_dict[label1].get_mean_std_count(index)
-                    m2, s2, n2 = self.group_dict[label2].get_mean_std_count(index)                    
-            else:
-                m1, s1, n1 = self.group_dict[label1].get_mean_std_count()
-                m2, s2, n2 = self.group_dict[label2].get_mean_std_count()
-            return Study(self.name, method, m1, s1, n1, m2, s2, n2)
+            group_experimental = self.group_dict[label1]
+            group_control = self.group_dict[label2]
+            return Study(self.name, method,
+                         group_experimental, group_control)
 
-    def gen_region_study(self, label1, label2, method, mask, region_label):
-        if not self.check_label(label1):
-            return
-        elif not self.check_label(label2):
-            return
-        else:
-            if isinstance(self.group_dict[label1], ArrayGroup):
-                m1, s1, n1 = self.group_dict[label1].get_region_mean_std_count(mask, region_label)
-                m2, s2, n2 = self.group_dict[label2].get_region_mean_std_count(mask, region_label)
-                return Study(self.name, method, m1, s1, n1, m2, s2, n2)
-            else:
-                raise ValueError(ArrayGroup)
+class Centers():
+    def __init__(self, center_list):
+        super().__init__()
+        self.center_list = center_list
+
+    def gen_studies(self, label1, label2, method):
+        studies = []
+        for center in self.center_list:
+            study = center.gen_study(label1, label2, method)
+            studies.append(study)
+        return studies
