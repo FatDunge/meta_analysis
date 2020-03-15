@@ -40,6 +40,7 @@ def load_arrays(pathes,axis=0):
     return arrays
 
 def cal_mean_std_n(arrays, axis=0):
+    arrays = np.asarray(arrays)
     mean = np.mean(arrays, axis=axis)
     std = np.std(arrays, axis=axis)
     n = arrays.shape[axis]
