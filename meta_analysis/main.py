@@ -115,10 +115,10 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
     center_std_dict = {}
     center_count_dict = {}
     for center_name, group_dict in center_dict.items():
+        group_mean_dict = {}
+        group_std_dict = {}
+        group_count_dict = {}
         for label, datas in group_dict.items():
-            group_mean_dict = {}
-            group_std_dict = {}
-            group_count_dict = {}
             mean, std, count = utils.cal_mean_std_n(datas)
             if origin_shape is None:
                 origin_shape = mean.shape
@@ -129,9 +129,9 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
             group_std_dict[label] = std.flatten()
             group_count_dict[label] = count
 
-            center_mean_dict[center_name] = group_mean_dict
-            center_std_dict[center_name] = group_std_dict
-            center_count_dict[center_name] = group_count_dict
+        center_mean_dict[center_name] = group_mean_dict
+        center_std_dict[center_name] = group_std_dict
+        center_count_dict[center_name] = group_count_dict
 
     # check mask shape, flatten mask
     if _mask is not None:
