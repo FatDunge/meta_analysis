@@ -46,7 +46,7 @@ def cal_mean_std_n(arrays, axis=0):
     n = arrays.shape[axis]
     return mean, std, n
 
-def gen_nii(array, template_nii, path=None):
+def gen_nii(array, template_nii, path=None, dtype=np.float32):
     """ generate nii file using template's header and affine
         if input path then save nii in disk.
     Args:
@@ -58,6 +58,7 @@ def gen_nii(array, template_nii, path=None):
     """
     affine = template_nii.affine
     header = template_nii.header
+    header.set_data_dtype(dtype)
     nii = nib.Nifti1Image(array, affine, header)
     if path:
         filename, extension = os.path.splitext(path)
