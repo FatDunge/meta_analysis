@@ -108,20 +108,31 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
 
     if is_filepath:
         center_dict = load_centers_data(center_dict)
-    
-    # Record origin shape and flatten shape
-    # flatten array has better time efficiency, maybe cause by caching memory
+
     origin_shape = None
     flatten_shape = None
-    for k, group_dict in center_dict.items():
+    center_mean_dict = {}
+    center_std_dict = {}
+    center_count_dict = {}
+    for center_name, group_dict in center_dict.items():
         for label, datas in group_dict.items():
+            group_mean_dict = {}
+            group_std_dict = {}
+            group_count_dict = {}
+            mean, std, count = utils.cal_mean_std_n(datas)
             if origin_shape is None:
-                origin_shape = datas[0].shape
-            # flatten datas but keep first dimension
-            datas = np.reshape(datas, (len(datas), -1))
-            center_dict[k][label] = datas
+                origin_shape = mean.shape
             if flatten_shape is None:
-                flatten_shape = datas[0].shape
+                flatten_shape = mean.flatten().shape
+            
+            group_mean_dict[label] = mean.flatten()
+            group_std_dict[label] = std.flatten()
+            group_count_dict[label] = count
+
+            center_mean_dict[center_name] = group_mean_dict
+            center_std_dict[center_name] = group_std_dict
+            center_count_dict[center_name] = group_count_dict
+
     # check mask shape, flatten mask
     if _mask is not None:
         if _mask.get_shape() == origin_shape:
@@ -130,19 +141,6 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
             pass
         else:
             raise AssertionError('Mask shape couldn\'t fit with data')
-
-    center_mean_dict = copy.deepcopy(center_dict)
-    center_std_dict = copy.deepcopy(center_dict)
-    center_count_dict = copy.deepcopy(center_dict)
-    for center_name, group_dict in center_dict.items():
-        for label, datas in group_dict.items():
-            mean, std, count = utils.cal_mean_std_n(datas)
-            center_mean_dict[center_name][label] = mean
-            center_std_dict[center_name][label] = std
-            center_count_dict[center_name][label] = count
-
-    #get indexes for all voxel need to meta analysis
-    if _mask is not None:
         indexes = _mask.get_nonzero_index()
     else:
         indexes = np.transpose(np.nonzero(np.ones(flatten_shape)))
