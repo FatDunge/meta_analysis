@@ -92,22 +92,15 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
                         {center1:{group1:[filepath1, filepath2],
                                   group2:[filepath3, filepath4]}
                         center2:{...}}
-                    is_filepath == False:
-                        {center1:{group1:[data1, data2],
-                                  group2:[data3, data4]}
-                        center2:{...}}
         label1: label of experimental group
         label2: label of control group
         _mask: Mask instance, use to mask array, will only caculate mask region.
         model: 'fixed' or 'random', meta analysis model.
         method: str, ways to caculate effect size
     Return:
-        results: ndarray, return from VoxelMeta.main()
+        results: ndarray, shape=(len(results from Model), data_shape)
     """
     center_dict = pop_center_and_group(center_dict, label1, label2)
-
-    if is_filepath:
-        center_dict = load_centers_data(center_dict)
 
     origin_shape = None
     flatten_shape = None
@@ -118,7 +111,8 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
         group_mean_dict = {}
         group_std_dict = {}
         group_count_dict = {}
-        for label, datas in group_dict.items():
+        for label, filepathes in group_dict.items():
+            datas = utils.load_arrays(filepathes)
             mean, std, count = utils.cal_mean_std_n(datas)
             if origin_shape is None:
                 origin_shape = mean.shape
