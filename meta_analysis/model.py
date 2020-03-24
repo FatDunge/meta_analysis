@@ -80,8 +80,19 @@ class Model(object):
         caculate(): caculate results
     """
 
-    def __init__(self, effect_sizes, variances):
+    def __init__(self, studies):
         super().__init__()
+        self.studies = studies
+        effect_sizes = []
+        variances = []
+
+        for study in studies:
+            es = study.get_effect_size()
+            v = study.get_variance()
+
+            effect_sizes.append(es)
+            variances.append(v)
+
         self.effect_sizes = np.asarray(effect_sizes)
         self.variances = np.asarray(variances)
         self.gen_weights()
@@ -121,19 +132,21 @@ class Model(object):
                 self.lower_limits, self.upper_limits,
                 self.q, self.z, self.p)
 
+    def plot_forest(self, show_weights=True, show_effect_sizes=True,
+                    sort=False):
+        pass
+
+
 class FixedModel(Model):
-    def __init__(self, effect_sizes, variances):
-        super().__init__(effect_sizes, variances)
+    def __init__(self, studies):
+        super().__init__(studies)
 
     def gen_weights(self):
-        effect_sizes = self.effect_sizes
-        variances = self.variances
-
-        self.weights = np.reciprocal(variances)
+        self.weights = np.reciprocal(self.variances)
 
 class RandomModel(Model):
-    def __init__(self, effect_sizes, variances):
-        super().__init__(effect_sizes, variances)
+    def __init__(self, studies):
+        super().__init__(studies)
 
     def gen_weights(self):
         effect_sizes = self.effect_sizes

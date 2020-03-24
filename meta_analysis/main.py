@@ -31,7 +31,7 @@ import copy
 import numpy as np
 import pandas as pd
 
-from . import meta
+from . import model
 from . import data
 from . import utils
 from . import mask
@@ -84,7 +84,7 @@ def pop_center_and_group(center_dict, label1, label2):
 
 def voxelwise_meta_analysis(center_dict, label1, label2,
                             _mask=None, is_filepath=True,
-                            model='random', method='cohen_d'):
+                            model_type='random', method='cohen_d'):
     """ perform voxelwise meta analysis
     Args:
         center_dict: dict of dict of group filepathes. pass to load_centers_data()
@@ -139,7 +139,6 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
     else:
         indexes = np.transpose(np.nonzero(np.ones(flatten_shape)))
 
-    m = meta.Meta()
     results_array = None
     for index in indexes:
         # construct Centers for indexed voxel
@@ -156,8 +155,11 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
             center_list.append(center)
         centers = data.Centers(center_list)
         studies = centers.gen_studies(label1, label2, method)
-        # perform meta analysis 
-        result_model = m.caculate(studies, model)
+        # perform meta analysis
+        if model_type.lower() == 'random':
+            result_model = model.RandomModel(studies)
+        elif model_type.lower() == 'fixed':
+            result_model = model.FixedModel(studies)
         results = result_model.get_results()
         # init results_array
         if results_array is None:
@@ -172,7 +174,7 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
 
 def region_volume_meta_analysis(center_dict, label1, label2, 
                                 _mask, is_filepath=True,
-                                model='random', method='cohen_d'):
+                                model_type='random', method='cohen_d'):
     """ perform region volume meta analysis
     Args:
         center_dict: dict of dict of group filepathes. pass to gen_array_center()
@@ -195,7 +197,6 @@ def region_volume_meta_analysis(center_dict, label1, label2,
 
     region_labels = mask.get_labels()
     results_dict = {}
-    m = meta.Meta()
     for region_label in region_labels:
         center_list = []
         for center_name, group_dict in center_dict.items():
@@ -211,12 +212,16 @@ def region_volume_meta_analysis(center_dict, label1, label2,
             center_list.append(center)
         centers = data.Centers(center_list)
         studies = centers.gen_studies(label1, label2, method)
-        result_model = m.caculate(studies, model)
+        if model_type.lower() == 'random':
+            result_model = model.RandomModel(studies)
+        elif model_type.lower() == 'fixed':
+            result_model = model.FixedModel(studies)
         results = result_model.get_results()
         results_dict[region_label] = results
     return results_dict
 
-def csv_meta_analysis(csvpath, header=0, method='cohen_d', model='random'):
+def csv_meta_analysis(csvpath, header=0,
+                      method='cohen_d', model_type='random'):
     """ perform meta analysis based on csv file
     Args:
         csvpath: csv filepath,
@@ -239,7 +244,9 @@ def csv_meta_analysis(csvpath, header=0, method='cohen_d', model='random'):
         group2 = data.Group(1, mean=m2, std=s2, count=n2)
         center = data.Center(index, [group1, group2])
         studies.append(center.gen_study(0,1,method))
-    _meta = meta.Meta()
-    result_model = _meta.caculate(studies, _model=model)
+    if model_type.lower() == 'random':
+        result_model = model.RandomModel(studies)
+    elif model_type.lower() == 'fixed':
+        result_model = model.FixedModel(studies)
     return result_model
 
