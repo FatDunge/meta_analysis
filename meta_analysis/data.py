@@ -33,6 +33,7 @@ along with meta_analysis.  If not, see <https://www.gnu.org/licenses/>.
 
 from dataclasses import dataclass
 from typing import Any
+import math
 
 import nibabel as nib
 import numpy as np
@@ -125,11 +126,11 @@ class Study(object):
     group_control: Group
 
     def __post_init__(self):
-        self.s = None
         if self.method == 'cohen_d':
             self.func = self.cohen_d
         elif self.method == 'hedge_g':
             self.func = self.hedge_g
+        self.func()
 
     def cohen_d(self):
         """ details in https://en.wikipedia.org/wiki/Effect_size
@@ -138,22 +139,33 @@ class Study(object):
         m2, s2, n2 = self.group_control.get_mean_std_count()
         s = np.sqrt(((n1-1)*(s1**2)+(n2-1)*(s2**2))/(n1+n2-2))
         d = (m1 - m2) / s
-        self.s = s
-        return d
+        self.effect_size = d
+        self.variance = (n1+n2)/(n1*n2) + d**2/(2*(n1+n2))
+        self.standard_error = math.sqrt(self.variance)
 
     def hedge_g(self):
-        g = self.cohen_d()
+        self.cohen_d()
         n1, n2 = self.count1, self.count2
-        g_star = (1-3/(4*(n1+n2)-9)) * g
-        return g_star
+        j = (1-3/(4*(n1+n2)-9))
+        g_star = j * self.effect_size
+        self.effect_size = g_star
+        self.variance = j**2 * self.variance
+        self.standard_error = math.sqrt(self.variance)
 
     def get_effect_size(self):
-        return self.func()
+        return self.effect_size
 
     def get_variance(self):
-        if not self.s:
-            self.func()
-        return self.s ** 2
+        return self.variance
+    
+    def get_standard_error(self):
+        return self.standard_error
+
+    def get_confidence_intervals(self):
+        # 95% confidence intervals
+        lower_limits = self.effect_size - 1.96 * self.standard_error
+        upper_limits = self.effect_size + 1.96 * self.standard_error
+        return lower_limits, upper_limits
 
 class Center(object):
     """ meta analysis study, used to caculate effect size and variance.
