@@ -1,7 +1,7 @@
 """ main file of full process, from load data to get results
 
 Function:
-    gen_array_center(center_dict, is_filepath): generate center contains ArrayGroup from dict
+    pop_center_and_group(center_dict, label1, label2): pop inrelvant center and group.
     voxelwise_meta_analysis(center_dict, label1, label2,
                             mask, is_filepath, model, method): perform voxelwise meta analysis
     region_volume_meta_analysis(center_dict, label1, label2, 
@@ -35,27 +35,6 @@ from . import model
 from . import data
 from . import utils
 from . import mask
-
-def load_centers_data(center_dict):
-    """ generate list of Center instance
-    Args:
-        center_dict: dict of dict of filepathes.
-                     {center1_name:{group1_label:[filepath1, filepath2],
-                                   group2_label:[filepath3, filepath4],
-                                   ...}
-                      center2_name:{...}}
-    Return:
-        center_dict: dict of dict of datas.
-                     {center1_name:{group1_label:[data1, data2],
-                                   group2_label:[data3, data4],
-                                   ...}
-                      center2_name:{...}}
-    """
-    for center_name, group_dict in center_dict.items():
-        for label, filepathes in group_dict.items():
-            array = utils.load_arrays(filepathes)
-            center_dict[center_name][label] = array
-    return center_dict
 
 def pop_center_and_group(center_dict, label1, label2):
     """ pop inrelavent center and group
@@ -173,8 +152,7 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
     return results_array
 
 def region_volume_meta_analysis(center_dict, label1, label2, 
-                                _mask, is_filepath=True,
-                                model_type='random', method='cohen_d'):
+                                _mask, model_type='random', method='cohen_d'):
     """ perform region volume meta analysis
     Args:
         center_dict: dict of dict of group filepathes. pass to gen_array_center()
@@ -192,17 +170,15 @@ def region_volume_meta_analysis(center_dict, label1, label2,
     """
     center_dict = pop_center_and_group(center_dict, label1, label2)
 
-    if is_filepath:
-        center_dict = load_centers_data(center_dict)
-
     region_labels = mask.get_labels()
     results_dict = {}
     for region_label in region_labels:
         center_list = []
         for center_name, group_dict in center_dict.items():
             groups = []
-            for label, datas in group_dict.items():
+            for label, filepathes in group_dict.items():
                 region_volumes = []
+                datas = utils.load_arrays(filepathes)
                 for data in datas:
                     region_volume = _mask.get_masked_volume(data, label)
                     region_volumes.append(region_volume)
