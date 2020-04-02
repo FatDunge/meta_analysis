@@ -1,15 +1,11 @@
 """ data module mainly use to manage core data
 
-Function:
-    load_array(path): load nii file by filepath, return dataobj array
-    load_arrays(pathes): load list of nii filepath, return ndarray of array
-    cal_mean_std_n(arrays, axis): calculate arrays mean, std, n by axis
-
 Class:
     Group(object): A specific label group within a center
     Study(object): A study which hold two group's mean, std, count,
                    can caculate its effect size, variance.
     Center(object): A center holds lots of group, generate study.
+    Cneters(object): Hold list of Center instances.
 
 Author: Kang Xiaopeng
 Data: 2020/02/20
@@ -107,16 +103,15 @@ class Study(object):
     Attributes:
         name: str, study name
         method: str, method to caculate effect size 
-        mean1: float, mean of experimental group
-        std1: float, std of experimental group
-        count1: int, count of experimental group
-        mean2: float, mean of control group
-        std2: float, std of control group
-        count2: int, count of control group
-        s: float, pooled standard deviation
-
+        group_experimental: Group, experimental group
+        group_control, Group, control group
+        effect_size: float, caculated effect size using 'method'.
+        variance: float, variacnce.
+        standard_error: float, standard error
+        
     Function:
-        cohen_d(): cohen'd effect size
+        cohen_d(): cohen's d effect size
+        hedge_g(): hedge's g effect size
         get_effect_size(): use specific method to return effect size
         get_variance(): return variance
     """
@@ -227,7 +222,13 @@ class Center(object):
             return Study(self.name, method,
                          group_experimental, group_control)
 
-class Centers():
+class Centers(object):
+    ''' Simply hold list of Center instance.
+    Attributes:
+        center_list: list of Center instances.
+    Function:
+        gen_studies(label1, label2, method): return list of Study instances.
+    '''
     def __init__(self, center_list):
         super().__init__()
         self.center_list = center_list

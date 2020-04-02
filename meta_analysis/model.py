@@ -65,6 +65,7 @@ class Model(object):
     """Basic class to perform check effect size from all study.
 
     Attributes:
+        studies: list of Study instance.
         effect_sizes: list, all studies' effect size
         variances: list, all studies' variance
         weights: list, all studies' weight
@@ -80,6 +81,8 @@ class Model(object):
     Function:
         gen_weights(): caculate weight from effect_sizes and variances
         caculate(): caculate results
+        get_results(): return all results.
+        plot_forest(): show forest plot.
     """
 
     def __init__(self, studies):
@@ -139,8 +142,7 @@ class Model(object):
                 self.lower_limits, self.upper_limits,
                 self.q, self.z, self.p)
 
-    def plot_forest(self, title=None, show_weights=True, show_effect_sizes=True,
-                    sort=False, save_path=None):
+    def plot_forest(self, title=None, save_path=None):
         dpi = 100
         grid_width = 1
         grid_height = 1
@@ -149,11 +151,6 @@ class Model(object):
         width = 17
         height = 2 + forest_plot_height
 
-        """
-        fig, ax = plt.subplots(figsize=(width, height),
-                               dpi=dpi, subplot_kw={'adjustable':'datalim','autoscale_on':False,
-                                                     'fc':'gray'})
-        """
         fig = plt.figure(figsize=(width, height),
                                dpi=dpi)
         ax = fig.add_axes([0, 0, 1, 1])
@@ -170,7 +167,7 @@ class Model(object):
         blva = 'bottom'
         ha = 'center'
         va = 'top'
-        #draw header
+
         study_x = x
         experimental_group_x = study_x + grid_width * 3
         control_group_x = experimental_group_x + grid_width * 3
@@ -180,9 +177,9 @@ class Model(object):
         upper_limit_x = lower_limit_x + grid_width
         interval_x = (lower_limit_x + upper_limit_x) / 2
         weight_x = upper_limit_x + grid_width
-
         header_y = height
 
+        #draw header
         ax.text(study_x, header_y, 'Study',ha=llha, va=va)
         ax.text(experimental_group_x, header_y, 'experimental group',ha=ha, va=va)
         ax.text(control_group_x, header_y, 'control group',ha=ha, va=va)

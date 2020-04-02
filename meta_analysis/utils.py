@@ -1,6 +1,9 @@
 """ Some helper function.
 
 Function:
+    load_array(path): load nii's array.
+    load_arrays(pathes, axis): load niis' array then stack them along 'axis'.
+    cal_mean_std_n(arrays, axis): calculate arrays' mean, std, count along 'axis'.
     gen_nii(array, template_nii, path): generate nii file using template's header and affine
 
 Author: Kang Xiaopeng
