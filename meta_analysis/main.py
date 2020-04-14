@@ -61,8 +61,32 @@ def pop_center_and_group(center_dict, label1, label2):
                 group_dict.pop(label)
     return center_dict
 
-def voxelwise_meta_analysis(center_dict, label1, label2,
-                            _mask=None, is_filepath=True,
+def gen_msn_dict(center_dict, dtype=np.float32):
+    center_mean_dict = {}
+    center_std_dict = {}
+    center_count_dict = {}
+    for center_name, group_dict in center_dict.items():
+        group_mean_dict = {}
+        group_std_dict = {}
+        group_count_dict = {}
+        for label, filepathes in group_dict.items():
+            datas = utils.load_arrays(filepathes, dtype=dtype)
+            mean, std, count = utils.cal_mean_std_n(datas)
+            
+            group_mean_dict[label] = mean.flatten()
+            group_std_dict[label] = std.flatten()
+            group_count_dict[label] = count
+
+        center_mean_dict[center_name] = group_mean_dict
+        center_std_dict[center_name] = group_std_dict
+        center_count_dict[center_name] = group_count_dict
+    return center_mean_dict, center_std_dict, center_count_dict
+
+def voxelwise_meta_analysis(label1, label2, center_dict=None,
+                            center_mean_dict=None,
+                            center_std_dict=None,
+                            center_count_dict=None,
+                            _mask=None, dtype=np.float32,
                             model_type='random', method='cohen_d'):
     """ perform voxelwise meta analysis
     Args:
@@ -79,32 +103,28 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
     Return:
         results: ndarray, shape=(len(results from Model), data_shape)
     """
-    center_dict = pop_center_and_group(center_dict, label1, label2)
+    if center_mean_dict and center_std_dict and center_count_dict:
+        pass
+    elif center_dict:
+        center_dict = pop_center_and_group(center_dict, label1, label2)
+        center_mean_dict, center_std_dict, center_count_dict = gen_msn_dict(center_dict, dtype)
+    else:
+        raise ValueError('Need Input For $center_dict$ or\
+                         ($center_mean_dict$, $center_std_dict$,\
+                          $center_count_dict$)')
 
     origin_shape = None
     flatten_shape = None
-    center_mean_dict = {}
-    center_std_dict = {}
-    center_count_dict = {}
-    for center_name, group_dict in center_dict.items():
-        group_mean_dict = {}
-        group_std_dict = {}
-        group_count_dict = {}
-        for label, filepathes in group_dict.items():
-            datas = utils.load_arrays(filepathes)
-            mean, std, count = utils.cal_mean_std_n(datas)
+    for center_name, group_dict in center_mean_dict.items():
+        for label, mean in group_dict.items():
             if origin_shape is None:
                 origin_shape = mean.shape
             if flatten_shape is None:
                 flatten_shape = mean.flatten().shape
-            
-            group_mean_dict[label] = mean.flatten()
-            group_std_dict[label] = std.flatten()
-            group_count_dict[label] = count
-
-        center_mean_dict[center_name] = group_mean_dict
-        center_std_dict[center_name] = group_std_dict
-        center_count_dict[center_name] = group_count_dict
+            center_mean_dict[center_name][label] = mean.flatten()
+    for center_name, group_dict in center_std_dict.items():
+        for label, std in group_dict.items():
+            center_std_dict[center_name][label] = std.flatten()
 
     # check mask shape, flatten mask
     if _mask is not None:
@@ -122,7 +142,7 @@ def voxelwise_meta_analysis(center_dict, label1, label2,
     for index in indexes:
         # construct Centers for indexed voxel
         center_list = []
-        for center_name, group_dict in center_dict.items():
+        for center_name, group_dict in center_mean_dict.items():
             groups = []
             for label, _ in group_dict.items():
                 mean = center_mean_dict[center_name][label][index][0]
