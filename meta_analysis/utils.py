@@ -30,16 +30,16 @@ import os
 import numpy as np
 import nibabel as nib
 
-def load_array(path):
+def load_array(path, dtype=np.float32):
     nii = nib.load(path)
-    array = np.asarray(nii.dataobj)
+    array = np.asarray(nii.dataobj, dtype=dtype)
     array = np.nan_to_num(array)
     return array
 
-def load_arrays(pathes,axis=0):
+def load_arrays(pathes, dtype=np.float32, axis=0):
     arrays = np.array([])
     if pathes:
-        arrays = np.stack([load_array(path) for path in pathes], axis=axis)
+        arrays = np.stack([load_array(path, dtype) for path in pathes], axis=axis)
     return arrays
 
 def cal_mean_std_n(arrays, axis=0):
@@ -67,6 +67,6 @@ def gen_nii(array, template_nii, path=None, dtype=np.float32):
         filename, extension = os.path.splitext(path)
         if not extension or extension != '.nii':
             extension = '.nii'
-            path = filename + extension
-            nib.nifti1.save(nii, path)
+        path = filename + extension
+        nib.nifti1.save(nii, path)
     return nii
