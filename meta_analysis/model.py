@@ -138,11 +138,11 @@ class Model(object):
 
     def get_results(self):
         return (self.total_effect_size,
-                self.total_variance, self.standard_error,
-                self.lower_limits, self.upper_limits,
+                self.total_variance, self.total_standard_error,
+                self.total_lower_limit, self.total_upper_limit,
                 self.q, self.z, self.p)
 
-    def plot_forest(self, title=None, save_path=None):
+    def plot_forest(self, title='', save_path=None, show=True):
         dpi = 100
         grid_width = 1
         grid_height = 1
@@ -209,22 +209,23 @@ class Model(object):
         row_y = height - grid_height
         ax.axhline((subheader_y+row_y)/2, color='black')
         # draw Study details
+        weights = self.weights / np.sum(self.weights)
         first_row_y = height - grid_height * 1.5
         for i, (study, effect_size, weight,
                 lower_limit, upper_limit) in enumerate(
-                    zip(self.studies, self.effect_sizes, self.weights,
+                    zip(self.studies, self.effect_sizes, weights,
                         self.lower_limits, self.upper_limits)):
             row_y = first_row_y - grid_height * i
             eg_mean, eg_std, eg_count = study.group_experimental.get_mean_std_count()
             cg_mean, cg_std, cg_count = study.group_control.get_mean_std_count()
 
             ax.text(study_x, row_y, study.name, ha=llha, va=va)
-            ax.text(eg_mean_x, row_y, eg_mean, ha=ha, va=va)
-            ax.text(eg_std_x, row_y, eg_std, ha=ha, va=va)
-            ax.text(eg_count_x, row_y, eg_count, ha=ha, va=va)
-            ax.text(cg_mean_x, row_y, cg_mean, ha=ha, va=va)
-            ax.text(cg_std_x, row_y, cg_std, ha=ha, va=va)
-            ax.text(cg_count_x, row_y, cg_count, ha=ha, va=va)
+            ax.text(eg_mean_x, row_y, '{:.2f}'.format(eg_mean), ha=ha, va=va)
+            ax.text(eg_std_x, row_y, '{:.2f}'.format(eg_std), ha=ha, va=va)
+            ax.text(eg_count_x, row_y, int(eg_count), ha=ha, va=va)
+            ax.text(cg_mean_x, row_y, '{:.2f}'.format(cg_mean), ha=ha, va=va)
+            ax.text(cg_std_x, row_y, '{:.2f}'.format(cg_std), ha=ha, va=va)
+            ax.text(cg_count_x, row_y, int(cg_count), ha=ha, va=va)
             ax.text(effect_size_x, row_y, '{:.2f}'.format(effect_size), ha=ha, va=va)
             ax.text(lower_limit_x, row_y, '[{:.2f}'.format(lower_limit), ha=ha, va=va)
             ax.text(upper_limit_x, row_y, '{:.2f}]'.format(upper_limit), ha=ha, va=va)
@@ -235,19 +236,21 @@ class Model(object):
         # draw total
         total_y = row_y - grid_height
         ax.text(study_x, total_y, 'Total', ha=llha, va=va)
-        ax.text(eg_count_x, total_y, total_eg_count, ha=ha, va=va)
-        ax.text(cg_count_x, total_y, total_cg_count, ha=ha, va=va)
+        ax.text(eg_count_x, total_y, int(total_eg_count), ha=ha, va=va)
+        ax.text(cg_count_x, total_y, int(total_cg_count), ha=ha, va=va)
         ax.text(effect_size_x, total_y, '{:.2f}'.format(self.total_effect_size), ha=ha, va=va)
         ax.text(lower_limit_x, total_y, '[{:.2f}'.format(self.total_lower_limit), ha=ha, va=va)
         ax.text(upper_limit_x, total_y, '{:.2f}]'.format(self.total_upper_limit), ha=ha, va=va)
-        ax.text(weight_x, total_y, '{:.2f}%'.format(np.sum(self.weights)*100), ha=ha, va=va)
+        ax.text(weight_x, total_y, '{:.2f}%'.format(np.sum(weights)*100), ha=ha, va=va)
         
         # draw summary
         summary_y = 0
         ax.axhline(grid_height/2, 0, 1, color='black')
         ax.text(0, summary_y, 'Heterogeneity:{:.2f}'.format(self.q), ha=llha, va=blva)
         ax.text(3*grid_width, summary_y, 'z-value:{:.2f}'.format(self.z), ha=ha, va=blva)
-        ax.text(5*grid_width, summary_y, 'p-value:{:.2f}'.format(self.p), ha=ha, va=blva)
+        ax.text(5*grid_width, summary_y, 'p-value:{}'.format(self.p), ha=ha, va=blva)
+        ax.text(froest_plot_x, summary_y, 'Title:{}'.format(title), ha=ha, va=blva)
+        
 
         # draw froest plot
         forest_ax = fig.add_axes([(froest_plot_x-forest_plot_width/2)/width, grid_height/height,
@@ -267,7 +270,7 @@ class Model(object):
         forest_ax.axvline(0, 0, 1, color=color)
         
         for i, (effect_size, weight, lower_limit, upper_limit) in enumerate(
-                zip(self.effect_sizes, self.weights, self.lower_limits, self.upper_limits)):
+                zip(self.effect_sizes, weights, self.lower_limits, self.upper_limits)):
             
             row_y = forest_first_row_y - grid_height * i
 
@@ -296,7 +299,8 @@ class Model(object):
                               [self.total_effect_size, forest_total_y - largest_box_height/2]])
         forest_ax.add_patch(Polygon(diamond, fill=fill, fc=color))
 
-        plt.show()
+        if show:
+            plt.show()
         if save_path:
             fig.savefig(save_path)
 
@@ -305,8 +309,7 @@ class FixedModel(Model):
         super().__init__(studies)
 
     def gen_weights(self):
-        weights = np.reciprocal(self.variances)
-        self.weights = weights / np.sum(weights)
+        self.weights = np.reciprocal(self.variances)
 
 class RandomModel(Model):
     def __init__(self, studies):
@@ -325,5 +328,4 @@ class RandomModel(Model):
         if tau_square < 0:
             tau_square = 0
 
-        weights = np.reciprocal(variances + tau_square)
-        self.weights = weights / np.sum(weights)
+        self.weights = np.reciprocal(variances + tau_square)
