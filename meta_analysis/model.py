@@ -320,12 +320,12 @@ class RandomModel(Model):
         variances = self.variances
 
         fixed_weights = np.reciprocal(variances)
-        mean_effect_size = np.mean(effect_sizes)
-        Q = np.sum(np.square(variances-mean_effect_size)/variances)
+        mean_effect_size = np.dot(effect_sizes, fixed_weights)/np.sum(fixed_weights)
+        Q = np.sum(np.square(effect_sizes-mean_effect_size)/variances)
         df = len(variances) - 1
         C = np.sum(fixed_weights) - np.sum(np.square(fixed_weights)) / np.sum(fixed_weights)
         tau_square = (Q - df) / C
         if tau_square < 0:
             tau_square = 0
-
+        self.tau_square = tau_square
         self.weights = np.reciprocal(variances + tau_square)
