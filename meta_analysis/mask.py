@@ -84,7 +84,7 @@ class Mask(object):
             masked array
         """
         mask_data = self.get_mask_data(label)
-        return np.multiply(mask_data, data)
+        return np.multiply(mask_data, array)
 
     def get_masked_volume(self, array, label):
         return np.sum(self.get_masked_data(array, label))
@@ -94,7 +94,7 @@ class Mask(object):
         Return:
             1D ndarray of unique labels without 0
         """
-        unique = numpy.unique(self.data)
+        unique = np.unique(self.data)
         return unique[unique != 0]
 
     def get_all_masked_volume(self, array):
@@ -111,7 +111,7 @@ class Mask(object):
 
     def get_masked_mean(self, array, label):
         volume = self.get_masked_volume(array, label)
-        count = self.get_masked_count(array, label)
+        count = self.get_masked_count(label)
         return volume / count
 
     def get_all_masked_mean(self, array):
