@@ -37,6 +37,23 @@ import numpy as np
 from . import utils
 
 class Group(object):
+    def __init__(self, label):
+        super().__init__()
+        self.label = label
+
+    def get_label(self):
+        return self.label
+
+class CategoricalGroup(Group):
+    def __init__(self, label, exposed, not_exposed):
+        super().__init__(label)
+        self.exposed = exposed
+        self.not_exposed = not_exposed
+
+    def get_values(self):
+        return self.exposed, self.not_exposed
+
+class NumericalGroup(Group):
     """ Group of specific label, holds origin data or mean, std, count.
 
     Attributes:
@@ -65,13 +82,11 @@ class Group(object):
             std: float, std of datas
             count: float, count of datas
         """
-        super().__init__()
-        self.label = label
+        super().__init__(label)
         self.datas = datas
         self.mean = mean
         self.std = std
         self.count = count
-        self.shape = 1
 
     def check_property(self):
         self.not_msn = self.mean is None or self.std is None or not self.count
@@ -82,12 +97,6 @@ class Group(object):
                 raise AttributeError('Need input for datas or (mean, std, count)')
         else:
             return True
-    
-    def is_same_shape(self, group):
-        return self.shape == group.shape
-
-    def get_label(self):
-        return self.label
     
     def get_mean_std_count(self):
         if self.check_property():
@@ -119,12 +128,22 @@ class Study(object):
     method: str
     group_experimental: Group
     group_control: Group
+    num = 1
+    cate = 0
 
     def __post_init__(self):
-        if self.method == 'cohen_d':
-            self.func = self.cohen_d
-        elif self.method == 'hedge_g':
-            self.func = self.hedge_g
+        method = self.method.lower()
+        if method == 'cohen_d' or method == 'cohen':
+            func = self.cohen_d
+            data_type = self.num
+        elif method == 'hedge_g' or method == 'hedge':
+            func = self.hedge_g
+            data_type = self.num
+        elif method == 'risk_ratio' or method == 'rr':
+            func = self.risk_ratio
+            data_type = self.cate
+        self.data_type = data_type
+        self.func = func
         self.func()
 
     def cohen_d(self):
@@ -140,12 +159,15 @@ class Study(object):
 
     def hedge_g(self):
         self.cohen_d()
-        n1, n2 = self.count1, self.count2
+        n1, n2 = self.group_experimental.count, self.group_control.count
         j = (1-3/(4*(n1+n2)-9))
         g_star = j * self.effect_size
         self.effect_size = g_star
         self.variance = j**2 * self.variance
         self.standard_error = math.sqrt(self.variance)
+    
+    def risk_ratio(self):
+        raise NotImplementedError()
 
     def get_effect_size(self):
         return self.effect_size
@@ -158,8 +180,14 @@ class Study(object):
 
     def get_confidence_intervals(self):
         # 95% confidence intervals
-        lower_limits = self.effect_size - 1.96 * self.standard_error
-        upper_limits = self.effect_size + 1.96 * self.standard_error
+        if self.data_type == self.num:
+            lower_limits = self.effect_size - 1.96 * self.standard_error
+            upper_limits = self.effect_size + 1.96 * self.standard_error
+        elif self.data_type == self.cate:
+            ln_lower_limits = np.log(self.effect_size) - 1.96 * self.standard_error
+            ln_upper_limits = np.log(self.effect_size) + 1.96 * self.standard_error
+            lower_limits = np.exp(ln_lower_limits)
+            upper_limits = np.exp(ln_upper_limits)
         return lower_limits, upper_limits
 
 class Center(object):
@@ -185,16 +213,11 @@ class Center(object):
     def check_groups(self, groups):
         #check shape
         base_group = groups[0]
-        self.shape = base_group.shape
         class_name = type(base_group).__name__
         for group in groups:
             #check Group class
             assert type(group).__name__ == class_name
-            assert base_group.is_same_shape(group)
-
-    def is_same_shape(self, center):
-        return self.shape == center.shape
-
+            
     def build_dict(self, groups):
         group_dict = {}
         for group in groups:

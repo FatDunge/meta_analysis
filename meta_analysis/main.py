@@ -148,7 +148,7 @@ def voxelwise_meta_analysis(label1, label2, center_dict=None,
                 mean = center_mean_dict[center_name][label][index][0]
                 std = center_std_dict[center_name][label][index][0]
                 count = center_count_dict[center_name][label]
-                group = data.Group(label=label, mean=mean, std=std, count=count)
+                group = data.NumericalGroup(label=label, mean=mean, std=std, count=count)
                 groups.append(group)
             center = data.Center(center_name, groups)
             center_list.append(center)
@@ -216,7 +216,7 @@ def region_volume_meta_analysis(center_dict, label1, label2,
         results_dict[region_label] = results
     return results_dict
 
-def csv_meta_analysis(csvpath, header=0,
+def csv_meta_analysis(csvpath, header=0, data_type='num',
                       method='cohen_d', model_type='random'):
     """ perform meta analysis based on csv file
     Args:
@@ -234,12 +234,19 @@ def csv_meta_analysis(csvpath, header=0,
     """
     df = pd.read_csv(csvpath, header=header, index_col=0)
     studies = []
+    eg_label = 1
+    cg_label = 0
     for index, row in df.iterrows():
-        m1,s1,n1,m2,s2,n2 = row.values
-        group1 = data.Group(0, mean=m1, std=s1, count=n1)
-        group2 = data.Group(1, mean=m2, std=s2, count=n2)
+        if data_type == 'num':
+            m1,s1,n1,m2,s2,n2 = row.values
+            group1 = data.NumericalGroup(eg_label, mean=m1, std=s1, count=n1)
+            group2 = data.NumericalGroup(cg_label, mean=m2, std=s2, count=n2)
+        else:
+            a,c,b,d = row.values
+            group1 = data.CategoricalGroup(eg_label, a, c)
+            group2 = data.CategoricalGroup(cg_label, b, d)
         center = data.Center(index, [group1, group2])
-        studies.append(center.gen_study(0,1,method))
+        studies.append(center.gen_study(eg_label, cg_label, method))
     if model_type.lower() == 'random':
         result_model = model.RandomModel(studies)
     elif model_type.lower() == 'fixed':

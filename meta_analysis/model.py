@@ -37,6 +37,8 @@ from matplotlib.patches import Rectangle, Polygon
 import numpy as np
 from scipy.stats import norm
 
+from . import data
+
 def inverse_variance(variance):
     return 1 / variance
 
@@ -115,7 +117,7 @@ class Model(object):
     def caculate(self):
         effect_sizes = self.effect_sizes
         variances = self.variances
-        weights = self.weights
+        weights = np.reciprocal(variances)
 
         total_effect_size = np.sum(np.multiply(effect_sizes, weights)) /\
                    np.sum(weights)
@@ -150,9 +152,21 @@ class Model(object):
         grid_height = 1
         forest_plot_width = 4 * grid_width
         forest_plot_height = (len(self.studies) + 1) * grid_height
+
+        is_cont = True
+        data_type = self.studies[0].data_type
+        if data_type == data.Study.num:
+            is_cont = True
+        elif data == data.Study.cate:
+            is_cont = False
+        
+        if not is_cont:
+            plot_group_details = False
+
         width = 18
         if not plot_group_details:
             width = width - 6
+
         height = 2 + forest_plot_height
         font_size = 18
 
@@ -219,7 +233,9 @@ class Model(object):
         row_y = height - grid_height
         ax.axhline((subheader_y+row_y)/2, color='black')
         # draw Study details
-        weights = self.weights / np.sum(self.weights)
+
+        weights = np.reciprocal(self.variances)
+        weights = weights / np.sum(weights)
         first_row_y = height - grid_height * 1.5
         for i, (study, effect_size, weight,
                 lower_limit, upper_limit) in enumerate(
